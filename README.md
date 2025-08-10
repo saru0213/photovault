@@ -1,36 +1,50 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# 📸 PhotoVault
 
-## Getting Started
+Modern photo gallery built with Next.js 13+ featuring dark theme and optimized performance.
 
-First, run the development server:
+## 🚀 Quick Start
 
 ```bash
+git clone https://github.com/yourusername/photovault.git
+cd photovault
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000)
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+## ✨ Features
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- 🌙 Dark theme optimized for photos
+- 📱 Fully responsive design
+- ⚡ Image optimization & fast loading
+- 📊 SEO ready with Open Graph
+- 🎨 Modern UI with glass effects
 
-## Learn More
+## 📁 Structure
 
-To learn more about Next.js, take a look at the following resources:
+```
+app/
+├── layout.js          # Root layout with navigation
+├── page.js            # Home gallery
+├── globals.css        # Styles
+└── albums/            # Album pages
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🎨 Customization
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**Colors**: Update CSS variables in `globals.css`
+**Metadata**: Edit `layout.js` metadata object
+**Images**: Add photos to `/public/images/`
 
-## Deploy on Vercel
+## 🚀 Deploy
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+**Vercel**: Connect GitHub repo to Vercel
+**Build**: `npm run build && npm start`
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 📝 Notes
+
+- Requires Node.js 18+
+- Uses Next.js App Router
+- Optimized for dark theme photo viewing
+- Mobile-first responsive design
