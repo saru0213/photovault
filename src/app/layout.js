@@ -12,7 +12,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "PhotoVault - Beautiful Photo Gallery",
+  title: "Photokeep - Beautiful Photo Gallery",
   description: "A stunning photo gallery showcasing memories and moments. Browse, organize.",
     keywords: "photo gallery, images, photography, portfolio, pictures, memories, visual stories",
 };

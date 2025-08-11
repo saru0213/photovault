@@ -1,25 +1,26 @@
-// components/ImageUpload.js - Modern UI with Drag & Drop and Preview
+// components/ImageUpload.js - Device-Friendly UI with Simple Features
 'use client';
 
 import { useState, useRef } from 'react';
 import { db } from '../lib/firebase';
 import { collection, addDoc } from 'firebase/firestore';
+import Image from 'next/image';
 
 export default function ImageUpload({ onUploadSuccess }) {
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
-  const [uploadProgress, setUploadProgress] = useState({});
   const fileInputRef = useRef(null);
 
   const validateFile = (file) => {
     const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
     const maxSize = 5 * 1024 * 1024; // 5MB
+    
     if (!validTypes.includes(file.type)) {
-      return { valid: false, error: 'Invalid file type. Only JPEG, PNG, GIF, and WebP are allowed.' };
+      return { valid: false, error: 'Only images allowed (JPEG, PNG, GIF, WebP)' };
     }
     if (file.size > maxSize) {
-      return { valid: false, error: 'File size too large. Maximum size is 5MB.' };
+      return { valid: false, error: 'File too large (max 5MB)' };
     }
     return { valid: true };
   };
@@ -27,14 +28,14 @@ export default function ImageUpload({ onUploadSuccess }) {
   const handleFiles = (files) => {
     const validFiles = [];
     const errors = [];
+    
     Array.from(files).forEach((file, index) => {
       const validation = validateFile(file);
       if (validation.valid) {
         const fileWithPreview = {
           file,
           id: `${Date.now()}-${index}`,
-          title: file.name.split('.')[0],
-          description: '',
+          title: file.name.split('.')[0].substring(0, 30), // Limit title length
           preview: URL.createObjectURL(file)
         };
         validFiles.push(fileWithPreview);
@@ -42,9 +43,11 @@ export default function ImageUpload({ onUploadSuccess }) {
         errors.push(`${file.name}: ${validation.error}`);
       }
     });
+
     if (errors.length > 0) {
-      alert('Some files were rejected:\n' + errors.join('\n'));
+      alert(errors.join('\n'));
     }
+    
     setSelectedFiles(prev => [...prev, ...validFiles]);
   };
 
@@ -58,6 +61,7 @@ export default function ImageUpload({ onUploadSuccess }) {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
+    
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       handleFiles(e.dataTransfer.files);
     }
@@ -78,9 +82,9 @@ export default function ImageUpload({ onUploadSuccess }) {
     });
   };
 
-  const updateFileInfo = (fileId, field, value) => {
+  const updateTitle = (fileId, value) => {
     setSelectedFiles(prev =>
-      prev.map(f => f.id === fileId ? { ...f, [field]: value } : f)
+      prev.map(f => f.id === fileId ? { ...f, title: value.substring(0, 50) } : f)
     );
   };
 
@@ -88,66 +92,67 @@ export default function ImageUpload({ onUploadSuccess }) {
     const formData = new FormData();
     formData.append('image', fileData.file);
     formData.append('title', fileData.title);
-    formData.append('description', fileData.description);
 
-    try {
-      setUploadProgress(prev => ({ ...prev, [fileData.id]: { status: 'uploading', progress: 0 } }));
-      const uploadResponse = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
+    const uploadResponse = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData,
+    });
 
-      if (!uploadResponse.ok) {
+    if (!uploadResponse.ok) {
+      let errorMessage = 'Upload failed';
+      try {
         const errorData = await uploadResponse.json();
-        throw new Error(errorData.error || 'Upload failed');
+        errorMessage = errorData.error || `Upload failed (${uploadResponse.status})`;
+      } catch (jsonError) {
+        errorMessage = `Upload failed (${uploadResponse.status}: ${uploadResponse.statusText})`;
       }
-
-      const imageData = await uploadResponse.json();
-      const docRef = await addDoc(collection(db, 'images'), imageData);
-
-      setUploadProgress(prev => ({ ...prev, [fileData.id]: { status: 'success', progress: 100 } }));
-      return { id: docRef.id, ...imageData };
-    } catch (error) {
-      setUploadProgress(prev => ({ ...prev, [fileData.id]: { status: 'error', error: error.message } }));
-      throw error;
+      throw new Error(errorMessage);
     }
+
+    let imageData;
+    try {
+      imageData = await uploadResponse.json();
+    } catch (jsonError) {
+      throw new Error('Invalid response from server');
+    }
+
+    const docRef = await addDoc(collection(db, 'images'), imageData);
+    
+    return { id: docRef.id, ...imageData };
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (selectedFiles.length === 0) return alert('Please select at least one image to upload.');
+  const handleSubmit = async () => {
+    if (selectedFiles.length === 0) {
+      alert('Please select images to upload');
+      return;
+    }
 
     setUploading(true);
+    let successCount = 0;
+    let errorCount = 0;
+
     try {
-      const uploadPromises = selectedFiles.map(uploadFile);
-      const results = await Promise.allSettled(uploadPromises);
-
-      let successCount = 0;
-      let errorCount = 0;
-
-      results.forEach((result, index) => {
-        if (result.status === 'fulfilled') {
+      for (const fileData of selectedFiles) {
+        try {
+          const result = await uploadFile(fileData);
+          onUploadSuccess(result);
+          URL.revokeObjectURL(fileData.preview);
           successCount++;
-          onUploadSuccess(result.value);
-          URL.revokeObjectURL(selectedFiles[index].preview);
-        } else {
+        } catch (error) {
+          console.error(`Upload failed for ${fileData.file.name}:`, error);
           errorCount++;
-          console.error(`Upload failed for ${selectedFiles[index].file.name}:`, result.reason);
         }
-      });
+      }
 
       setSelectedFiles([]);
-      setUploadProgress({});
-      alert(
-        successCount > 0 && errorCount === 0
-          ? `Successfully uploaded ${successCount} image(s)!`
-          : successCount > 0
-            ? `Uploaded ${successCount} image(s). ${errorCount} failed.`
-            : 'All uploads failed.'
-      );
-    } catch (err) {
-      console.error('Upload error:', err);
-      alert('Upload failed: ' + err.message);
+      
+      if (successCount > 0 && errorCount === 0) {
+        alert(`Successfully uploaded ${successCount} image(s)!`);
+      } else if (successCount > 0) {
+        alert(`Uploaded ${successCount} image(s). ${errorCount} failed.`);
+      } else {
+        alert('Upload failed. Please try again.');
+      }
     } finally {
       setUploading(false);
     }
@@ -156,40 +161,47 @@ export default function ImageUpload({ onUploadSuccess }) {
   const clearAll = () => {
     selectedFiles.forEach(file => URL.revokeObjectURL(file.preview));
     setSelectedFiles([]);
-    setUploadProgress({});
   };
 
   return (
-    <div className="bg-gray-50 p-8 rounded-2xl shadow-md border border-gray-200">
-      <h2 className="text-2xl font-bold mb-6 text-gray-700">📤 Upload Your Images</h2>
+    <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200 mx-auto max-w-2xl">
+      {/* Header */}
+      <div className="text-center mb-4">
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2">Upload Images</h2>
+        <p className="text-sm text-gray-600">Select multiple images to upload</p>
+      </div>
 
+      {/* Upload Area */}
       <div
-        className={`border-2 border-dashed rounded-xl p-10 text-center transition-all duration-300 ${
-          dragActive ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300 hover:border-indigo-400 bg-white'
+        className={`border-2 border-dashed rounded-lg p-6 sm:p-8 text-center transition-colors touch-manipulation ${
+          dragActive 
+            ? 'border-blue-400 bg-blue-50' 
+            : 'border-gray-300 bg-gray-50 hover:border-blue-300'
         }`}
         onDragEnter={handleDrag}
         onDragLeave={handleDrag}
         onDragOver={handleDrag}
         onDrop={handleDrop}
       >
-        <div className="space-y-4">
-          <div className="text-6xl text-indigo-400">🖼️</div>
+        <div className="space-y-3">
+          <div className="text-4xl sm:text-5xl">📷</div>
           <div>
-            <p className="text-lg font-medium text-gray-800">
-              Drag and drop images here, or{' '}
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="text-indigo-600 hover:underline font-semibold"
-              >
-                browse files
-              </button>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors text-sm sm:text-base font-medium"
+            >
+              Choose Images
+            </button>
+            <p className="text-xs sm:text-sm text-gray-500 mt-2">
+              Or drag and drop here
             </p>
-            <p className="text-sm text-gray-500 mt-1">
-              JPEG, PNG, GIF, WebP — max 5MB
+            <p className="text-xs text-gray-400 mt-1">
+              JPEG, PNG, GIF, WebP • Max 5MB each
             </p>
           </div>
         </div>
+        
         <input
           ref={fileInputRef}
           type="file"
@@ -200,89 +212,78 @@ export default function ImageUpload({ onUploadSuccess }) {
         />
       </div>
 
+      {/* Selected Files */}
       {selectedFiles.length > 0 && (
-        <div className="mt-6">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold text-gray-700">Selected Images ({selectedFiles.length})</h3>
+        <div className="mt-4">
+          <div className="flex justify-between items-center mb-3">
+            <span className="text-sm font-medium text-gray-700">
+              {selectedFiles.length} image(s) selected
+            </span>
             <button
               type="button"
               onClick={clearAll}
-              className="text-sm text-red-500 hover:text-red-600 underline"
+              className="text-sm text-red-500 hover:text-red-600 font-medium"
             >
               Clear All
             </button>
           </div>
 
-          <div className="space-y-4 max-h-96 overflow-y-auto">
+          {/* Files List */}
+          <div className="space-y-3 max-h-80 overflow-y-auto">
             {selectedFiles.map((fileData) => (
-              <div key={fileData.id} className="border border-gray-200 rounded-lg p-4 bg-white shadow-sm hover:shadow-md transition">
-                <div className="flex gap-4">
-                  <img
+              <div key={fileData.id} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                <div className="flex gap-3">
+                  {/* Image Preview */}
+                  <Image
+                  width={300}
+                  height={200}
                     src={fileData.preview}
                     alt="Preview"
-                    className="w-20 h-20 object-cover rounded-lg border border-gray-100"
+                    className="w-12 h-12 sm:w-16 sm:h-16 object-cover rounded-md border flex-shrink-0"
                   />
-                  <div className="flex-1 space-y-2">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-medium text-gray-700 text-sm">{fileData.file.name}</p>
-                        <p className="text-xs text-gray-400">{Math.round(fileData.file.size / 1024)} KB</p>
+                  
+                  {/* File Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-gray-700 truncate">
+                          {fileData.file.name}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {(fileData.file.size / 1024).toFixed(0)} KB
+                        </p>
                       </div>
                       <button
                         type="button"
                         onClick={() => removeFile(fileData.id)}
-                        className="text-sm text-red-500 hover:text-red-600 font-medium"
+                        className="text-red-500 hover:text-red-600 p-1 ml-2"
                       >
-                        ✖ Remove
+                        <span className="text-sm">✕</span>
                       </button>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      <input
-                        type="text"
-                        value={fileData.title}
-                        onChange={(e) => updateFileInfo(fileData.id, 'title', e.target.value)}
-                        placeholder="Title"
-                        className="text-sm p-2 border text-gray-800 rounded-lg border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                      />
-                      <input
-                        type="text"
-                        value={fileData.description}
-                        onChange={(e) => updateFileInfo(fileData.id, 'description', e.target.value)}
-                        placeholder="Description (optional)"
-                        className="text-sm p-2 border text-gray-800 rounded-lg border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                      />
-                    </div>
-                    {uploadProgress[fileData.id] && (
-                      <div className="mt-1 text-sm">
-                        {uploadProgress[fileData.id].status === 'uploading' && (
-                          <span className="text-blue-600 animate-pulse">Uploading...</span>
-                        )}
-                        {uploadProgress[fileData.id].status === 'success' && (
-                          <span className="text-green-600">✅ Uploaded</span>
-                        )}
-                        {uploadProgress[fileData.id].status === 'error' && (
-                          <span className="text-red-500">❌ {uploadProgress[fileData.id].error}</span>
-                        )}
-                      </div>
-                    )}
+                    
+                    {/* Title Input */}
+                    <input
+                      type="text"
+                      value={fileData.title}
+                      onChange={(e) => updateTitle(fileData.id, e.target.value)}
+                      placeholder="Image title"
+                      className="w-full text-sm p-2 border text-black border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                      maxLength="50"
+                    />
                   </div>
                 </div>
               </div>
             ))}
           </div>
-        </div>
-      )}
 
-      {selectedFiles.length > 0 && (
-        <div className="mt-6">
+          {/* Upload Button */}
           <button
             onClick={handleSubmit}
             disabled={uploading}
-            className="w-full bg-indigo-500 text-white py-3 px-4 rounded-lg hover:bg-indigo-600 transition disabled:opacity-50 disabled:cursor-not-allowed text-base font-semibold"
+            className="w-full mt-4 bg-green-500 text-white py-3 px-4 rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium touch-manipulation"
           >
-            {uploading
-              ? `Uploading ${selectedFiles.length} image(s)...`
-              : `Upload ${selectedFiles.length} image(s)`}
+            {uploading ? 'Uploading...' : `Upload ${selectedFiles.length} Image(s)`}
           </button>
         </div>
       )}
