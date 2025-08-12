@@ -10,29 +10,24 @@ export default function UploadPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Header with Back Button */}
-<div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
-  <div className="max-w-4xl mx-auto px-4 py-3 flex items-center">
-    <Link
-      href="/"
-      className="flex items-center gap-2 px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 active:bg-blue-700 transition-colors touch-manipulation font-medium text-sm sm:text-base min-h-[44px] min-w-[44px]"
-    >
-      <span className="text-lg">←</span>
-      <span className="hidden sm:inline">Back to Home</span>
-    </Link>
-  </div>
-</div>
-
-
+    <div className="min-h-screen bg-gray-100 relative">
+      {/* Back to Login Button */}
+      <div className="absolute top-4 left-4">
+        <Link
+          href="/"
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700 transition"
+        >
+          ← Back to Login
+        </Link>
+      </div>
 
       {/* Main Content */}
-      <div className="p-4 sm:p-6 lg:p-8">
+      <div className="p-4 sm:p-6 lg:p-8 pt-16">
         <div className="max-w-3xl mx-auto">
           <ImageUpload onUploadSuccess={handleUploadSuccess} />
         </div>
       </div>
-      
+
       {/* Bottom Safe Area for mobile devices */}
       <div className="h-4 sm:h-8"></div>
     </div>
